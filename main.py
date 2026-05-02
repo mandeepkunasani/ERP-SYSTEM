@@ -3,13 +3,13 @@ import mysql.connector
 from datetime import date
 import matplotlib.pyplot as plt
 
-st.set_page_config(page_title="E-Court Pro", layout="wide")
+st.set_page_config(page_title="ERP PRO", layout="wide")
 
 # ---------- STYLE ----------
 st.markdown("""
 <style>
-.main-title {font-size:40px; font-weight:bold; color:#2E86C1;}
-.card {padding:15px; border-radius:10px; background:#f2f2f2; margin:10px;}
+.big {font-size:40px;font-weight:bold;color:#4CAF50;}
+.card {background:#f8f9fa;padding:15px;border-radius:10px;margin:10px 0;}
 </style>
 """, unsafe_allow_html=True)
 
@@ -19,7 +19,7 @@ def connect():
         host="localhost",
         user="root",
         password="root123",
-        database="ecourt_final"
+        database="erp_final"
     )
 
 def run(q, p=None, fetch=False):
@@ -35,10 +35,10 @@ def run(q, p=None, fetch=False):
 if "login" not in st.session_state:
     st.session_state.login = False
 
-# ---------- LOGIN ----------
+# ---------- LOGIN / SIGNUP ----------
 if not st.session_state.login:
 
-    st.markdown('<p class="main-title">⚖️ E-Court System</p>', unsafe_allow_html=True)
+    st.markdown("<p class='big'>🏢 ERP PRO SYSTEM</p>", unsafe_allow_html=True)
 
     mode = st.radio("Select", ["Login","Signup"])
 
@@ -51,21 +51,25 @@ if not st.session_state.login:
             if res:
                 st.session_state.login = True
                 st.session_state.user = u
-                st.session_state.role = res[0][4]
                 st.rerun()
             else:
                 st.error("Invalid Login")
 
     else:
+        st.subheader("Signup")
+
         name = st.text_input("Name")
         username = st.text_input("Username")
-        password = st.text_input("Password")
-        role = st.selectbox("Role",["admin","lawyer"])
+        password = st.text_input("Password", type="password")
+        mobile = st.text_input("Mobile")
 
         if st.button("Signup"):
-            run("INSERT INTO users(name,username,password,role) VALUES(%s,%s,%s,%s)",
-                (name,username,password,role))
-            st.success("Created")
+            try:
+                run("INSERT INTO users(name,username,password,role,mobile) VALUES(%s,%s,%s,'staff',%s)",
+                    (name,username,password,mobile))
+                st.success("Account Created ✅")
+            except:
+                st.error("Username exists")
 
 # ---------- MAIN ----------
 else:
@@ -73,7 +77,7 @@ else:
     st.sidebar.write(f"👤 {st.session_state.user}")
 
     menu = st.sidebar.radio("Menu",
-        ["Dashboard","Lawyers","Judges","Cases","Hearings","Verdicts","Reports","Logout"]
+        ["Dashboard","Products","Customers","Orders","Reports","Logout"]
     )
 
     if menu == "Logout":
@@ -82,144 +86,152 @@ else:
 
     # ---------- DASHBOARD ----------
     if menu == "Dashboard":
-        st.markdown('<p class="main-title">📊 Dashboard</p>', unsafe_allow_html=True)
+        st.markdown("<p class='big'>📊 Dashboard</p>", unsafe_allow_html=True)
 
-        total = run("SELECT COUNT(*) FROM cases", fetch=True)[0][0]
-        closed = run("SELECT COUNT(*) FROM cases WHERE status='Closed'", fetch=True)[0][0]
-        pending = run("SELECT COUNT(*) FROM cases WHERE status='Pending'", fetch=True)[0][0]
+        p = run("SELECT COUNT(*) FROM products", fetch=True)[0][0]
+        c = run("SELECT COUNT(*) FROM customers", fetch=True)[0][0]
+        o = run("SELECT COUNT(*) FROM orders", fetch=True)[0][0]
 
-        c1,c2,c3 = st.columns(3)
-        c1.metric("Total Cases", total)
-        c2.metric("Closed Cases", closed)
-        c3.metric("Pending Cases", pending)
+        col1,col2,col3 = st.columns(3)
+        col1.metric("Products", p)
+        col2.metric("Customers", c)
+        col3.metric("Orders", o)
 
-    # ---------- LAWYERS ----------
-    if menu == "Lawyers":
-        st.title("👨‍⚖️ Lawyers")
+    # ---------- PRODUCTS ----------
+    if menu == "Products":
+        st.title("📦 Products")
 
         name = st.text_input("Name")
-        phone = st.text_input("Phone")
-        email = st.text_input("Email")
+        price = st.number_input("Selling Price")
+        cost = st.number_input("Cost Price")
+        stock = st.number_input("Stock")
 
-        if st.button("Add Lawyer"):
-            run("INSERT INTO lawyers(name,phone,email) VALUES(%s,%s,%s)",
-                (name,phone,email))
-            st.success("Added")
+        if st.button("Add Product"):
+            try:
+                run("INSERT INTO products(name,price,cost,stock) VALUES(%s,%s,%s,%s)",
+                    (name,price,cost,stock))
+                st.success("Added")
+            except:
+                st.error("Duplicate Product")
 
-        data = run("SELECT * FROM lawyers", fetch=True)
-        st.table(data)
+        data = run("SELECT * FROM products", fetch=True)
+
+        st.subheader("Edit / Delete")
 
         ids = [d[0] for d in data]
         if ids:
-            lid = st.selectbox("Select Lawyer", ids)
-            if st.button("Delete Lawyer"):
-                run("DELETE FROM lawyers WHERE id=%s",(lid,))
+            pid = st.selectbox("Select Product", ids)
+            prod = [d for d in data if d[0]==pid][0]
+
+            new_name = st.text_input("Edit Name", prod[1])
+            new_price = st.number_input("Edit Price", float(prod[2]))
+            new_cost = st.number_input("Edit Cost", float(prod[3]))
+            new_stock = st.number_input("Edit Stock", int(prod[4]))
+
+            col1,col2 = st.columns(2)
+
+            if col1.button("Update"):
+                run("UPDATE products SET name=%s,price=%s,cost=%s,stock=%s WHERE id=%s",
+                    (new_name,new_price,new_cost,new_stock,pid))
+                st.success("Updated")
                 st.rerun()
 
-    # ---------- JUDGES ----------
-    if menu == "Judges":
-        st.title("👨‍⚖️ Judges")
+            if col2.button("Delete"):
+                run("DELETE FROM products WHERE id=%s",(pid,))
+                st.warning("Deleted")
+                st.rerun()
 
-        name = st.text_input("Judge Name")
-        court = st.text_input("Court No")
+        st.table(data)
 
-        if st.button("Add Judge"):
-            run("INSERT INTO judges(name,court_no) VALUES(%s,%s)",
-                (name,court))
+    # ---------- CUSTOMERS ----------
+    if menu == "Customers":
+        st.title("👥 Customers")
+
+        name = st.text_input("Customer Name")
+        mobile = st.text_input("Mobile")
+
+        if st.button("Add Customer"):
+            run("INSERT INTO customers(name,mobile) VALUES(%s,%s)",(name,mobile))
             st.success("Added")
 
-        data = run("SELECT * FROM judges", fetch=True)
-        st.table(data)
-
-    # ---------- CASES ----------
-    if menu == "Cases":
-        st.title("📂 Cases")
-
-        lawyers = run("SELECT id,name FROM lawyers", fetch=True)
-        judges = run("SELECT id,name FROM judges", fetch=True)
-
-        lmap = {x[1]:x[0] for x in lawyers}
-        jmap = {x[1]:x[0] for x in judges}
-
-        case_type = st.selectbox("Case Type",["Civil","Criminal"])
-        lawyer = st.selectbox("Lawyer", list(lmap.keys()))
-        judge = st.selectbox("Judge", list(jmap.keys()))
-        status = st.selectbox("Status",["Pending","Ongoing","Closed"])
-
-        if st.button("Create Case"):
-            run("""
-            INSERT INTO cases(case_type,filing_date,status,lawyer_id,judge_id)
-            VALUES(%s,%s,%s,%s,%s)
-            """,(case_type,date.today(),status,lmap[lawyer],jmap[judge]))
-            st.success("Created")
-
-        data = run("SELECT * FROM cases", fetch=True)
-        st.table(data)
+        data = run("SELECT * FROM customers", fetch=True)
 
         ids = [d[0] for d in data]
         if ids:
-            cid = st.selectbox("Edit Case", ids)
-            new_status = st.selectbox("Update Status",["Pending","Ongoing","Closed"])
+            cid = st.selectbox("Select Customer", ids)
+            cust = [d for d in data if d[0]==cid][0]
 
-            if st.button("Update Case"):
-                run("UPDATE cases SET status=%s WHERE id=%s",(new_status,cid))
+            new_name = st.text_input("Edit Name", cust[1])
+            new_mobile = st.text_input("Edit Mobile", cust[2])
+
+            col1,col2 = st.columns(2)
+
+            if col1.button("Update Customer"):
+                run("UPDATE customers SET name=%s,mobile=%s WHERE id=%s",
+                    (new_name,new_mobile,cid))
                 st.success("Updated")
+                st.rerun()
 
-            if st.button("Delete Case"):
-                run("DELETE FROM cases WHERE id=%s",(cid,))
+            if col2.button("Delete Customer"):
+                run("DELETE FROM customers WHERE id=%s",(cid,))
                 st.warning("Deleted")
+                st.rerun()
 
-    # ---------- HEARINGS ----------
-    if menu == "Hearings":
-        st.title("📅 Hearings")
+        st.table(data)
 
-        cases = run("SELECT id FROM cases", fetch=True)
-        cid = st.selectbox("Case", [c[0] for c in cases])
+    # ---------- ORDERS ----------
+    if menu == "Orders":
+        st.title("🛒 Orders")
 
-        d = st.date_input("Date")
-        t = st.time_input("Time")
+        customers = run("SELECT id,name FROM customers", fetch=True)
+        products = run("SELECT id,name,price,cost FROM products", fetch=True)
 
-        if st.button("Add Hearing"):
-            run("""
-            INSERT INTO hearings(case_id,hearing_date,hearing_time,status)
-            VALUES(%s,%s,%s,'Scheduled')
-            """,(cid,str(d),str(t)))
-            st.success("Added")
+        c_dict = {c[1]:c[0] for c in customers}
+        p_dict = {p[1]:p for p in products}
 
-        st.table(run("SELECT * FROM hearings", fetch=True))
+        customer = st.selectbox("Customer", list(c_dict.keys()))
+        product = st.selectbox("Product", list(p_dict.keys()))
+        qty = st.number_input("Quantity", min_value=1)
 
-    # ---------- VERDICTS ----------
-    if menu == "Verdicts":
-        st.title("⚖️ Verdicts")
+        price = p_dict[product][2]
+        cost = p_dict[product][3]
 
-        cases = run("SELECT id FROM cases", fetch=True)
-        cid = st.selectbox("Case", [c[0] for c in cases])
+        total = price * qty
+        profit = (price - cost) * qty
 
-        decision = st.text_area("Decision")
+        st.write(f"💰 Total: ₹{total}")
+        st.write(f"📈 Profit: ₹{profit}")
 
-        if st.button("Add Verdict"):
-            run("""
-            INSERT INTO verdicts(case_id,verdict_date,decision)
-            VALUES(%s,%s,%s)
-            """,(cid,date.today(),decision))
+        if st.button("Place Order"):
+            run("INSERT INTO orders(customer_id,total,profit,date) VALUES(%s,%s,%s,%s)",
+                (c_dict[customer], total, profit, date.today()))
 
-            run("UPDATE cases SET status='Closed' WHERE id=%s",(cid,))
-            st.success("Verdict Added")
+            oid = run("SELECT MAX(id) FROM orders", fetch=True)[0][0]
 
-        st.table(run("SELECT * FROM verdicts", fetch=True))
+            run("INSERT INTO order_details(order_id,product_id,quantity,price,cost) VALUES(%s,%s,%s,%s,%s)",
+                (oid,p_dict[product][0],qty,price,cost))
+
+            run("UPDATE products SET stock=stock-%s WHERE id=%s",
+                (qty,p_dict[product][0]))
+
+            st.success("Order Placed")
+
+        st.table(run("SELECT * FROM orders", fetch=True))
 
     # ---------- REPORTS ----------
     if menu == "Reports":
         st.title("📈 Reports")
 
-        data = run("SELECT filing_date FROM cases", fetch=True)
+        data = run("SELECT date,total FROM orders", fetch=True)
 
         if data:
             dates = [str(d[0]) for d in data]
+            totals = [float(d[1]) for d in data]
 
             plt.figure()
-            plt.plot(dates)
+            plt.plot(dates, totals, marker='o')
             plt.xticks(rotation=45)
             st.pyplot(plt)
 
-        st.table(run("SELECT * FROM cases", fetch=True))
+        profit = run("SELECT SUM(profit) FROM orders", fetch=True)[0][0]
+        st.success(f"Total Profit: ₹{profit if profit else 0}")
